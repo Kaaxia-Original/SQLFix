@@ -1,7 +1,9 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using SQLFix.Application.Commands;
 using SQLFix.Application.Queries;
+using SQLFix.Data;
 
 namespace SQLFix.Controllers;
 
@@ -10,6 +12,8 @@ namespace SQLFix.Controllers;
 public class ProductController : ControllerBase
 {
     private readonly IMediator _mediator;
+
+    private readonly WriteDbContext _write;
 
     public ProductController(IMediator mediator)
     {
@@ -30,5 +34,4 @@ public class ProductController : ControllerBase
         var result = await _mediator.Send(query);
         return Ok(result);
     }
-
 }

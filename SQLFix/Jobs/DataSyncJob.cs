@@ -17,15 +17,51 @@ namespace SQLFix.Jobs
             _readDb = readDb;
         }
 
+
         public async Task Execute(IJobExecutionContext context)
         {
             var token = context.CancellationToken;
 
             var writeProducts = await _writeDb.Products.AsNoTracking().ToListAsync(token);
+            var readProducts = await _readDb.Products.AsNoTracking().ToListAsync(token);
 
-            await _readDb.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"Products\" RESTART IDENTITY CASCADE;", token);
+            var readDict = readProducts.ToDictionary(p => p.Id);
 
-            _readDb.Products.AddRange(writeProducts);
+
+
+            foreach (var wp in writeProducts)
+            {
+                if (readDict.TryGetValue(wp.Id, out var existing))
+                {
+                    existing.Name = wp.Name;
+                    existing.Description = wp.Description;
+                    existing.Price = wp.Price;
+                    existing.Stock = wp.Stock;
+                    existing.CreatedAt = wp.CreatedAt ?? TimeSpan.MinValue;
+                    existing.UpdatedAt = wp.UpdatedAt ?? TimeSpan.MinValue;
+                    existing.IsActive = wp.IsActive;
+
+                    _readDb.Products.Update(existing);
+                }
+                else
+                {
+                    _readDb.Products.Add(new Product
+                    {
+                        Id = wp.Id,
+                        Name = wp.Name,
+                        Description = wp.Description,
+                        Price = wp.Price,
+                        Stock = wp.Stock,
+                        CreatedAt = wp.CreatedAt ?? TimeSpan.MinValue,
+                        UpdatedAt = wp.UpdatedAt ?? TimeSpan.MinValue,
+                        IsActive = wp.IsActive
+                    });
+                }
+            }
+
+            var writeIds = writeProducts.Select(p => p.Id).ToHashSet();
+            var toRemove = readProducts.Where(p => !writeIds.Contains(p.Id)).ToList();
+            _readDb.Products.RemoveRange(toRemove);
 
             await _readDb.SaveChangesAsync(token);
         }
